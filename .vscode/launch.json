@@ -7,7 +7,7 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug executable 'laska'",
+      "name": "laska",
       "cargo": {
         "args": [
           "build",
@@ -25,7 +25,7 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug unit tests in executable 'laska'",
+      "name": "tests",
       "cargo": {
         "args": [
           "test",
