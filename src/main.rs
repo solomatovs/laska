@@ -1,14 +1,13 @@
-use argparse::{ArgumentParser, Store};
+mod net;
+use tracing_subscriber::EnvFilter;
 
-fn main() {
-    let mut addr = "".to_string();
-    {
-        let mut ap = ArgumentParser::new();
-        ap.set_description("Transparently broadcasts stdin, stdout via icmp");
-        ap.refer(&mut addr)
-          .add_option(&["-t", "--target-address"], Store, "Target IP");
-        ap.parse_args_or_exit();
-    }
 
-    println!("{}", addr)
+fn main() -> anyhow::Result<()> {
+  tracing_subscriber::fmt::fmt()
+    .with_env_filter(EnvFilter::from_default_env())
+    .init();
+  
+  let app = net::IcmpApp::new()?;
+
+  return app.start();
 }

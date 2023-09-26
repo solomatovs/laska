@@ -19,7 +19,12 @@
           "kind": "bin"
         }
       },
-      "args": [],
+      "args": [
+        // "-i", "en0",
+      ],
+      "env": {
+        "RUST_LOG": "debug",
+      },
       "cwd": "${workspaceFolder}"
     },
     {
