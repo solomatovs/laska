@@ -1,5 +1,4 @@
 use std::io::Error;
-use std::mem;
 
 use tracing::error;
 use anyhow::{anyhow, Result};
@@ -82,7 +81,7 @@ impl IcmpV4App {
     return Ok(());
   }
 
-  fn _send_packet(self,
+  pub fn send_packet(self,
     addr: &sockaddr_in,
     addr_len: socklen_t,
     buf: &[u8],
@@ -106,11 +105,11 @@ impl IcmpV4App {
     Ok(res)
   }
 
-  fn _recv_packet(self, buf: &mut [u8], flags: c_int) -> Result<(ssize_t, sockaddr_in)> {
-    let mut len: socklen_t = mem::size_of::<sockaddr_in>() as socklen_t;
+  pub fn recv_packet(self, buf: &mut [u8], flags: c_int) -> Result<(ssize_t, sockaddr_in)> {
+    let mut len: socklen_t = self._len;
+
     let mut addr = sockaddr_in {
-      sin_len: 128,
-      sin_family: AF_INET as u8,
+      sin_family: AF_INET as u16,
       sin_port: 0,
       sin_addr: in_addr {
         s_addr: 0,
@@ -122,7 +121,7 @@ impl IcmpV4App {
       let buf_ref = buf.as_ptr() as *mut _;
       let addr_ref = &mut addr as *mut sockaddr_in as *mut _;
       let addr_len_ref = &mut len as *mut _;
-
+      
       recvfrom(self.socket,
         buf_ref,
         buf.len(),

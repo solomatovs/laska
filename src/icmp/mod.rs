@@ -95,8 +95,7 @@ impl IcmpApp {
       IpAddr::V4(dest_ip) => {
         let mut ipcursor = Cursor::new(dest_ip.octets());
         let addr = sockaddr_in {
-          sin_len: 128,
-          sin_family: AF_INET as u8,
+          sin_family: AF_INET as u16,
           sin_port: 0,
           sin_addr: in_addr { s_addr: ipcursor.read_u32::<LittleEndian>().unwrap() },
           sin_zero: [0; 8],
@@ -106,11 +105,10 @@ impl IcmpApp {
       }
       IpAddr::V6(dest_ip) => {
         let addr = sockaddr_in6 {
-          sin6_len: 0,
           sin6_flowinfo: 0,
           sin6_port: 0,
           sin6_scope_id: 0,
-          sin6_family: AF_INET6 as u8,
+          sin6_family: AF_INET6 as u16,
           sin6_addr: Self::init_in6_addr(dest_ip),
         };
         let len = mem::size_of::<sockaddr_in6>() as socklen_t;
@@ -138,11 +136,18 @@ impl IcmpApp {
     // Create new ICMP-header (IPv4 and IPv6)
     let identifier = 0;
     let sequence_number = 0;
-    let mut _icmp4header = ICMP4Header::echo_request(identifier, sequence_number).to_byte_array();
+    let mut _header = ICMP4Header::echo_request(identifier, sequence_number).to_byte_array();
     let mut buf = String::new();
 
     while handle.read_line(&mut buf).unwrap() > 0 {
+      match &self {
+        Self::V4(_a) => {
+          _a.send_packet(addr, addr_len, buf, flags)
+        }
+        Self::V6(_a) => {
 
+        }
+      }
       buf.clear();
     }
     Ok(())

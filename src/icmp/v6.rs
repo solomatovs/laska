@@ -109,8 +109,7 @@ impl IcmpV6App {
   fn _recv_packet(self, buf: &mut [u8], flags: c_int) -> Result<(ssize_t, sockaddr_in6)> {
     let mut len: socklen_t = mem::size_of::<sockaddr_in6>() as socklen_t;
     let mut addr = sockaddr_in6 {
-      sin6_len: 128,
-      sin6_family: AF_INET6 as u8,
+      sin6_family: AF_INET6 as u16,
       sin6_port: 0,
       sin6_flowinfo: 0,
       sin6_addr: in6_addr {

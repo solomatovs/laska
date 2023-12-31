@@ -28,6 +28,8 @@ fn main() -> anyhow::Result<()> {
   let mut ip = String::new();
 
   while handle.read_line(&mut ip).unwrap() > 0 {
+    let mut ip = ip.trim().to_owned();
+    
     if let Err(e) = app.ip_working(&mut handle, &ip) {
       error!("{}", e);
     }

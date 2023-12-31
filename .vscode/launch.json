@@ -20,31 +20,12 @@
         }
       },
       "args": [
-        // "-i", "en0",
+        "-b", "127.0.0.1",
       ],
       "env": {
         "RUST_LOG": "debug",
       },
-      "cwd": "${workspaceFolder}"
+      "cwd": "${workspaceFolder}",
     },
-    {
-      "type": "lldb",
-      "request": "launch",
-      "name": "tests",
-      "cargo": {
-        "args": [
-          "test",
-          "--no-run",
-          "--bin=laska",
-          "--package=laska"
-        ],
-        "filter": {
-          "name": "laska",
-          "kind": "bin"
-        }
-      },
-      "args": [],
-      "cwd": "${workspaceFolder}"
-    }
   ]
 }

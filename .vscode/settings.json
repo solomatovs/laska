@@ -1,0 +1,10 @@
+{
+    "lldb.cargo": "/config/.cargo/bin/cargo",
+    "lldb.executable": "rust-lldb",
+    "lldb.launch.sourceLanguages": [
+        "rust"
+    ],
+    "lldb.launch.sourceMap": {
+        "/rustc/cc66ad468955717ab92600c770da8c1601a4ff33": "/config/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust"
+    }
+}
