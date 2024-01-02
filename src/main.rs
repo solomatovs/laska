@@ -1,11 +1,10 @@
 mod icmp;
 use icmp::IcmpApp;
 
-use std::io::{self, BufRead};
 use clap::Parser;
-use tracing_subscriber::EnvFilter;
+use std::io::{self, BufRead};
 use tracing::error;
-
+use tracing_subscriber::EnvFilter;
 
 /// stdin, stdout via icmp
 #[derive(Parser, Debug)]
@@ -17,25 +16,25 @@ pub struct IcmpArgs {
 }
 
 fn main() -> anyhow::Result<()> {
-  tracing_subscriber::fmt::fmt()
-    .with_env_filter(EnvFilter::from_default_env())
-    .init();
-  
-  let args = IcmpArgs::parse();
-  let app = IcmpApp::new(&args.bind_ip)?;
+    tracing_subscriber::fmt::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
 
-  let mut handle = io::stdin().lock();
-  let mut ip = String::new();
+    let args = IcmpArgs::parse();
+    let app = IcmpApp::new(&args.bind_ip)?;
 
-  while handle.read_line(&mut ip).unwrap() > 0 {
-    let mut ip = ip.trim().to_owned();
-    
-    if let Err(e) = app.ip_working(&mut handle, &ip) {
-      error!("{}", e);
+    let mut handle = io::stdin().lock();
+    let mut ip = String::new();
+
+    while handle.read_line(&mut ip).unwrap() > 0 {
+        let mut ip = ip.trim().to_owned();
+
+        if let Err(e) = app.ip_working(&mut handle, &ip) {
+            error!("{}", e);
+        }
+
+        ip.clear();
     }
 
-    ip.clear();
-  }
-
-  Ok(())
+    Ok(())
 }
