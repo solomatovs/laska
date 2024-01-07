@@ -1,0 +1,219 @@
+use std::io::Cursor;
+use std::io::Error;
+use std::mem;
+use std::net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV6, ToSocketAddrs};
+use std::str::FromStr;
+use std::net::
+
+use anyhow::{anyhow, Result};
+use byteorder::{LittleEndian, ReadBytesExt};
+use libc::{
+    bind, c_int, c_void, size_t, close, in6_addr, recvfrom, sendto, sockaddr, sockaddr_in6, socket, socklen_t,
+    ssize_t, AF_INET6, SOCK_RAW,
+};
+
+use std::os::unix::io::{RawFd};
+
+
+use tracing::error;
+
+static IPPROTO_ICMP: c_int = 1;
+
+pub struct IcmpV6App {
+    socket: c_int,
+    _addr: sockaddr_in6,
+    _len: socklen_t,
+}
+
+impl Drop for IcmpV6App {
+    fn drop(&mut self) {
+        let res = unsafe { close(self.socket) };
+
+        if res == -1 {
+            error!("{}", Error::last_os_error().to_string());
+        }
+    }
+}
+
+impl IcmpV6App {
+    fn set_nonblock(socket: c_int) -> Result<()> {
+        unsafe {
+            let flags = libc::fcntl(socket, libc::F_GETFL);
+            let res = libc::fcntl(socket, libc::F_SETFL, flags | libc::O_NONBLOCK);
+
+            if res == -1 {
+                return Err(anyhow!(Error::last_os_error().to_string()));
+            }
+
+            Ok(())
+        }
+    }
+
+    pub fn new_inner(addr: sockaddr_in6, len: socklen_t) -> Result<IcmpV6App> {
+        let socket = unsafe { socket(AF_INET6, SOCK_RAW, IPPROTO_ICMP) };
+
+        if socket == -1 {
+            return Err(anyhow!(Error::last_os_error().to_string()));
+        }
+
+        Self::set_nonblock(socket)?;
+
+        let res = unsafe {
+            let addr_ref = &addr as *const sockaddr_in6;
+            let addr_ref = addr_ref as *const sockaddr;
+            bind(socket, addr_ref, len)
+        };
+
+        if res == -1 {
+            return Err(anyhow!(Error::last_os_error().to_string()));
+        }
+
+        Ok(IcmpV6App {
+            socket,
+            _addr: addr,
+            _len: len,
+        })
+    }
+
+    fn init_in6_addr(addr: Ipv6Addr) -> libc::in6_addr {
+        libc::in6_addr {
+            s6_addr: addr.octets(),
+        }
+    }
+
+    pub fn sockaddr_from_string(ip: &str) -> Result<(sockaddr_in6, socklen_t)> {
+        let ip = IpAddr::from_str(ip)?;
+        let ip = if let IpAddr::V6(ip) = ip {
+            ip
+        } else {
+            return Err(anyhow!(""));
+        };
+
+        let addr = sockaddr_in6 {
+            sin6_len: 0,
+            sin6_flowinfo: 0,
+            sin6_port: 0,
+            sin6_scope_id: 0,
+            sin6_family: AF_INET6 as u8,
+            sin6_addr: Self::init_in6_addr(ip),
+        };
+        let len = mem::size_of::<sockaddr_in6>() as socklen_t;
+
+        Ok((addr, len))
+    }
+
+    pub fn new(ip: &str) -> Result<IcmpV6App> {
+        let (addr, len) = Self::sockaddr_from_string(ip)?;
+        Self::new_inner(addr, len)
+    }
+
+    fn _bind_to_ip(socket: c_int, addr: &sockaddr_in6, len: socklen_t) -> Result<()> {
+        let addr_ref = (addr as *const sockaddr_in6) as *const sockaddr;
+        let res = unsafe { bind(socket, addr_ref, len) };
+
+        if res != 0 {
+            return Err(anyhow!(Error::last_os_error()));
+        }
+
+        return Ok(());
+    }
+
+    fn send_packet_inner(
+        socket: i32,
+        addr: &sockaddr_in6,
+        addr_len: socklen_t,
+        buf: &[u8],
+        flags: c_int,
+    ) -> Result<ssize_t> {
+        let res = unsafe {
+            sendto(
+                socket,
+                buf.as_ptr() as *const _,
+                buf.len(),
+                flags,
+                (addr as *const sockaddr_in6) as *const _,
+                addr_len,
+            )
+        };
+
+        if res == -1 {
+            return Err(anyhow!(Error::last_os_error()));
+        }
+
+        Ok(res)
+    }
+
+    pub fn send_packet(
+        self,
+        ip: &str,
+        buf: &[u8],
+    ) -> Result<ssize_t> {
+        let (addr, len) = Self::sockaddr_from_string(ip)?;
+        let flags = 0;
+        let res = Self::send_packet_inner(self.socket, &addr, len, buf, flags);
+
+        res
+    }
+
+    fn recv_packet_inner(socket: i32, buf: &mut [u8], flags: c_int) -> Result<(ssize_t, sockaddr_in6)> {
+        let mut n_addr = Ipv6Addr::new(0, 0, 0, 0, 0, 0xffff, 0xc00a, 0x2ff);
+
+        let res = unsafe {
+            // let mut addr = mem::zeroed::<sockaddr_in6>();
+            let mut addr_ptr = n_addr.as
+            let mut addr_ptr = &mut addr as *mut sockaddr_in6 as *mut sockaddr;
+            let mut addrlen = mem::size_of_val(&addr);
+            let mut addrlen_ptr = &mut addrlen as *mut usize as *mut socklen_t;
+            let buf_ptr = buf.as_mut_ptr() as *mut c_void;
+            let buf_len = buf.len() as size_t;
+
+            recvfrom(socket, buf_ptr, buf_len, flags, addr_ptr, addrlen_ptr)
+        };
+
+
+
+
+
+        // let mut len: socklen_t = mem::size_of::<sockaddr_in6>() as socklen_t;
+        // let mut addr = sockaddr_in6 {
+        //     sin6_len: 0,
+        //     sin6_family: AF_INET6 as u8,
+        //     sin6_port: 0,
+        //     sin6_flowinfo: 0,
+        //     sin6_addr: in6_addr { s6_addr: [0; 16] },
+        //     sin6_scope_id: 0,
+        // };
+
+        let res = unsafe {
+            let buf_ref = buf.as_ptr() as *mut _;
+            // let addr_ref = &mut addr as *mut sockaddr_in6 as *mut _;
+            // let addr_len_ref = &mut len as *mut _;
+
+            let addr_ref = n_addr
+
+            recvfrom(
+                socket,
+                buf_ref,
+                buf.len(),
+                flags,
+                addr_ref,
+                addr_len_ref,
+            )
+        };
+
+        if res == -1 {
+            return Err(anyhow!(Error::last_os_error()));
+        }
+
+        let addr = SocketAddrV6::from<sockaddr_in6>(addr);
+
+        return Ok((res, addr));
+    }
+
+
+    fn recv_packet(self, buf: &mut [u8]) -> Result<ssize_t> {
+        let flags = 0;
+        let (size, addr) = Self::recv_packet_inner(self.socket, buf, flags)?;
+        return Ok(size);
+    }
+}

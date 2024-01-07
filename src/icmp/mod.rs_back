@@ -4,14 +4,12 @@ mod v6;
 use v4::IcmpV4App;
 use v6::IcmpV6App;
 
-use std::io::{BufRead, Cursor, StdinLock};
-use std::mem;
-use std::net::{IpAddr, Ipv6Addr};
+use std::io::{BufRead, StdinLock};
+
+use std::net::IpAddr;
 use std::str::FromStr;
 
-use anyhow::{Context, Result};
-use byteorder::{LittleEndian, ReadBytesExt};
-use libc::{in_addr, sockaddr_in, sockaddr_in6, socklen_t, AF_INET, AF_INET6};
+use anyhow::{anyhow, Context, Result};
 
 #[derive(Debug)]
 pub struct ICMP4Header {
@@ -65,7 +63,6 @@ impl ICMP4Header {
     }
 }
 
-
 pub enum IcmpApp {
     V4(IcmpV4App),
     V6(IcmpV6App),
@@ -73,30 +70,23 @@ pub enum IcmpApp {
 
 impl IcmpApp {
     pub fn new(ip: &str) -> Result<IcmpApp> {
-        let dest_ip = IpAddr::from_str(ip)?;
+        let addr = IpAddr::from_str(ip)?;
 
-        match dest_ip {
-            IpAddr::V4(dest_ip) => {
-                let res =
-                    IcmpV4App::ip_to_sockaddr(dest_ip).context("Could not create socket (v4)")?;
-                Ok(IcmpApp::V4(res))
-            }
-            IpAddr::V6(dest_ip) => {
-                let res =
-                    IcmpV6App::ip_to_sockaddr(dest_ip).context("Could not create socket (v6)")?;
-                Ok(IcmpApp::V6(res))
-            }
-        }
+        let app = if addr.is_ipv4() {
+            IcmpApp::V4(IcmpV4App::new(ip)?)
+        } else if addr.is_ipv6() {
+            IcmpApp::V6(IcmpV6App::new(ip)?)
+        } else {
+            return Err(anyhow!(""));
+        };
+
+        Ok(app)
     }
 
     pub fn send_packet(&self, _buf: &String) -> Result<()> {
         match &self {
-            Self::V4(_s) => {
-
-            }
-            Self::V6(_s) => {
-
-            }
+            Self::V4(_s) => {}
+            Self::V6(_s) => {}
         }
         // todo!();
         // match &self {

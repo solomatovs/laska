@@ -1,5 +1,4 @@
-mod icmp;
-use icmp::IcmpApp;
+
 
 use clap::Parser;
 use std::io::{self, BufRead};

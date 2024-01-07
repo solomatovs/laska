@@ -1,22 +1,26 @@
-use std::mem;
-use std::{io::Error, net::Ipv6Addr};
+use std::io::Error;
+use std::str::FromStr;
 
 use anyhow::{anyhow, Result};
-use libc::{
-    bind, c_int, close, in6_addr, recvfrom, sendto, sockaddr, sockaddr_in6, socket, socklen_t,
-    ssize_t, AF_INET6, SOCK_RAW,
-};
 use tracing::error;
 
-static IPPROTO_ICMP: c_int = 1;
+use byteorder::{LittleEndian, ReadBytesExt};
+use std::io::Cursor;
+use std::mem;
+use std::net::{IpAddr, Ipv4Addr};
 
-pub struct IcmpV6App {
+use libc::{
+    bind, c_int, close, in_addr, recvfrom, sendto, sockaddr, sockaddr_in, socket, socklen_t,
+    ssize_t, AF_INET, IPPROTO_ICMP, SOCK_RAW,
+};
+
+pub struct IcmpV4App {
     socket: c_int,
-    _addr: sockaddr_in6,
+    _addr: sockaddr_in,
     _len: socklen_t,
 }
 
-impl Drop for IcmpV6App {
+impl Drop for IcmpV4App {
     fn drop(&mut self) {
         let res = unsafe { close(self.socket) };
 
@@ -26,7 +30,7 @@ impl Drop for IcmpV6App {
     }
 }
 
-impl IcmpV6App {
+impl IcmpV4App {
     fn set_nonblock(socket: c_int) -> Result<()> {
         unsafe {
             let flags = libc::fcntl(socket, libc::F_GETFL);
@@ -40,8 +44,8 @@ impl IcmpV6App {
         }
     }
 
-    pub fn new(addr: sockaddr_in6, len: socklen_t) -> Result<IcmpV6App> {
-        let socket = unsafe { socket(AF_INET6, SOCK_RAW, IPPROTO_ICMP) };
+    pub fn new_inner(sockaddr: sockaddr_in, len: socklen_t) -> Result<IcmpV4App> {
+        let socket = unsafe { socket(AF_INET, SOCK_RAW, IPPROTO_ICMP) };
 
         if socket == -1 {
             return Err(anyhow!(Error::last_os_error().to_string()));
@@ -50,7 +54,7 @@ impl IcmpV6App {
         Self::set_nonblock(socket)?;
 
         let res = unsafe {
-            let addr_ref = &addr as *const sockaddr_in6;
+            let addr_ref = &sockaddr as *const sockaddr_in;
             let addr_ref = addr_ref as *const sockaddr;
             bind(socket, addr_ref, len)
         };
@@ -59,34 +63,44 @@ impl IcmpV6App {
             return Err(anyhow!(Error::last_os_error().to_string()));
         }
 
-        Ok(IcmpV6App {
+        Ok(IcmpV4App {
             socket,
-            _addr: addr,
+            _addr: sockaddr,
             _len: len,
         })
     }
 
-    fn init_in6_addr(addr: Ipv6Addr) -> libc::in6_addr {
-        libc::in6_addr {
-            s6_addr: addr.octets(),
-        }
-    }
-
-    pub fn ip_to_sockaddr(dest_ip: Ipv6Addr) -> Result<IcmpV6App> {
-        let addr = sockaddr_in6 {
-            sin6_len: 0,
-            sin6_flowinfo: 0,
-            sin6_port: 0,
-            sin6_scope_id: 0,
-            sin6_family: AF_INET6 as u8,
-            sin6_addr: Self::init_in6_addr(dest_ip),
+    pub fn sockaddr_from_string(ip: &str) -> Result<(sockaddr_in, socklen_t)> {
+        let ip = IpAddr::from_str(ip)?;
+        let ip = if let IpAddr::V4(ip) = ip {
+            ip
+        } else {
+            return Err(anyhow!(""));
         };
-        let len = mem::size_of::<sockaddr_in6>() as socklen_t;
-        Self::new(addr, len)
+
+        let mut ipcursor = Cursor::new(ip.octets());
+
+        let addr = sockaddr_in {
+            sin_len: 0,
+            sin_family: AF_INET as u8,
+            sin_port: 0,
+            sin_addr: in_addr {
+                s_addr: ipcursor.read_u32::<LittleEndian>().unwrap(),
+            },
+            sin_zero: [0; 8],
+        };
+        let len = mem::size_of::<sockaddr_in>() as socklen_t;
+
+        Ok((addr, len))
     }
 
-    fn _bind_to_ip(socket: c_int, addr: &sockaddr_in6, len: socklen_t) -> Result<()> {
-        let addr_ref = (addr as *const sockaddr_in6) as *const sockaddr;
+    pub fn new(ip: &str) -> Result<IcmpV4App> {
+        let (addr, len) = Self::sockaddr_from_string(ip)?;
+        Self::new_inner(addr, len)
+    }
+
+    fn _bind_to_ip(socket: c_int, addr: &sockaddr_in, len: socklen_t) -> Result<()> {
+        let addr_ref = (addr as *const sockaddr_in) as *const sockaddr;
         let res = unsafe { bind(socket, addr_ref, len) };
 
         if res != 0 {
@@ -96,9 +110,9 @@ impl IcmpV6App {
         return Ok(());
     }
 
-    fn _send_packet(
+    pub fn send_packet(
         self,
-        addr: &sockaddr_in6,
+        addr: &sockaddr_in,
         addr_len: socklen_t,
         buf: &[u8],
         flags: c_int,
@@ -109,7 +123,7 @@ impl IcmpV6App {
                 buf.as_ptr() as *const _,
                 buf.len(),
                 flags,
-                (addr as *const sockaddr_in6) as *const _,
+                (addr as *const sockaddr_in) as *const _,
                 addr_len,
             )
         };
@@ -121,20 +135,20 @@ impl IcmpV6App {
         Ok(res)
     }
 
-    fn _recv_packet(self, buf: &mut [u8], flags: c_int) -> Result<(ssize_t, sockaddr_in6)> {
-        let mut len: socklen_t = mem::size_of::<sockaddr_in6>() as socklen_t;
-        let mut addr = sockaddr_in6 {
-            sin6_len: 0,
-            sin6_family: AF_INET6 as u8,
-            sin6_port: 0,
-            sin6_flowinfo: 0,
-            sin6_addr: in6_addr { s6_addr: [0; 16] },
-            sin6_scope_id: 0,
+    pub fn recv_packet(self, buf: &mut [u8], flags: c_int) -> Result<(ssize_t, sockaddr_in)> {
+        let mut len: socklen_t = self._len;
+
+        let mut addr = sockaddr_in {
+            sin_len: 0,
+            sin_family: AF_INET as u8,
+            sin_port: 0,
+            sin_addr: in_addr { s_addr: 0 },
+            sin_zero: [0; 8],
         };
 
         let res = unsafe {
             let buf_ref = buf.as_ptr() as *mut _;
-            let addr_ref = &mut addr as *mut sockaddr_in6 as *mut _;
+            let addr_ref = &mut addr as *mut sockaddr_in as *mut _;
             let addr_len_ref = &mut len as *mut _;
 
             recvfrom(

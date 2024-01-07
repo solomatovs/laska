@@ -1,0 +1,70 @@
+// use std::process::Command;
+// use std::time::{Duration, Instant};
+// use crossbeam_channel::{after, select, tick};
+
+// use laska::pipe;
+// use laska::socket::IcmpSocket;
+// use laska::*;
+
+// fn main() {
+//     let mut command = Command::new("sh");
+//     command.arg("-c").arg("echo 1; sleep 1; echo 2; sleep 1; echo 3");
+//     command.stdout(std::process::Stdio::piped());
+//     command.stderr(std::process::Stdio::piped());
+//     let mut process = command.spawn().expect("!spawn");
+
+//     let out = PipeStreamReader::new(box process.stdout.take().expect("!stdout"));
+//     let err = PipeStreamReader::new(box process.stderr.take().expect("!stderr"));
+//     let select = Select::new();
+//     let mut out_rx = select.handle(&out.lines);
+//     let mut err_rx = select.handle(&err.lines);
+//     unsafe {
+//         out_rx.add();
+//         err_rx.add();
+//     }
+//     let mut out_eof = false;
+//     let mut err_eof = false;
+//     while !out_eof || !err_eof {
+//         let evid = select.wait();
+//         let recv_result = if out_rx.id() == evid {
+//             out_rx.recv()
+//         } else {
+//             err_rx.recv()
+//         };
+//         match recv_result {
+//             Ok(remote_result) => {
+//                 match remote_result {
+//                     Ok(piped_line) => {
+//                         match piped_line {
+//                             PipedLine::Line(line) => println!("{}", line),
+//                             PipedLine::EOF => {
+//                                 if out_rx.id() == evid {
+//                                     out_eof = true;
+//                                     unsafe { out_rx.remove() }
+//                                 } else {
+//                                     err_eof = true;
+//                                     unsafe { err_rx.remove() }
+//                                 }
+//                             }
+//                         }
+//                     }
+//                     Err(error) => println!("system] error: {:?}", error),
+//                 }
+//             }
+//             Err(_) => {
+//                 if out_rx.id() == evid {
+//                     out_eof = true;
+//                     unsafe { out_rx.remove() }
+//                 } else {
+//                     err_eof = true;
+//                     unsafe { err_rx.remove() }
+//                 }
+//             }
+//         }
+//     }
+
+//     let status = process.wait().expect("!wait");
+//     if !status.success() {
+//         panic!("!status: {}", status.code().expect("!code"))
+//     }
+// }
