@@ -28,5 +28,16 @@
                 "64.233.161.139",
             ],
         },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "t2",
+            "program": "${workspaceFolder}/target/debug/examples/t2",
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "cargo build --examples",
+            "args": [
+                "64.233.161.139",
+            ],
+        },
     ]
 }

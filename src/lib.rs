@@ -17,7 +17,9 @@
 //! directory.
 pub mod packet;
 pub mod pipe;
+pub mod settings;
 pub mod socket;
+pub mod os_notifier;
 
 pub use packet::{Icmpv4Message, Icmpv4Packet, Icmpv6Message, Icmpv6Packet};
 pub use pipe::{PipeError, PipeStreamReader, PipedLine};

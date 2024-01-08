@@ -13,8 +13,12 @@ byteorder = "1.4.2"
 libc = "0.2.151"
 ctrlc = "3.4.2"
 log = "0.4"
-nix = "0.27.1"
+nix = {version = "0.27.1", features = ["term"] }
 socket2 = {version = "0.5.5", features = ["all"]}
+clap = { version = "4.4.13", features = ["derive", "suggestions", "color"] }
+humantime = "2.1.0"
+anstyle = "1.0.4"
+signal-hook = "0.3.17"
 
 [dev-dependencies]
 env_logger = "0.10.0"
